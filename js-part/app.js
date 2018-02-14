@@ -2,7 +2,7 @@ const { spawnSync } = require('child_process');
 const os = require('os');
 const querystring = require('querystring');
 const http = require('http');
-
+const apiconf = require('./rest-api-config.json');
 
 function getTemp() {
     let obj = JSON.parse(spawnSync('./helper/IoT-temp.exe').stdout.toString());
@@ -18,10 +18,10 @@ function getTemp() {
 
 function getSystemInfo() {
     let res = [];
-    res['5a60c981c03f976ffe0a284f'] = getTemp().temperature;
-    res['5a60c98fc03f9770ac00c511'] = os.totalmem() / Math.pow(1024,2);/*scaleBytes(os.totalmem());*/
-    res['5a7d18d0c03f971f7049b09f'] = os.freemem() / Math.pow(1024,2);/*scaleBytes(os.freemem());*/
-    res['5a7d18f6c03f971f53609f8d'] = 100 * (res['5a60c98fc03f9770ac00c511'] - res['5a7d18d0c03f971f7049b09f']) / res['5a60c98fc03f9770ac00c511'];
+    res.temperature = getTemp().temperature;
+    res.ram_free = os.freemem() / Math.pow(1024,2);/*scaleBytes(os.freemem());*/
+    res.ram_usage = 100 * (os.totalmem() - res.ram_free) / os.totalmem();
+    res.ram_free /= Math.pow(1024,2);
     return res;
 }
 
@@ -50,16 +50,10 @@ function PostData(id, val) {
   
     // An object of options to indicate where to post to
     let post_options = {
-        host: 'things.ubidots.com',
-        path: '/api/v1.6/variables/' + id + '/values',
-        method: 'POST',
-        headers: {
-            'Connection': 'close',
-            'X-Auth-Token': 'A1E-chqg35bli7Ks7gPNiXkvHnwrELqNrk',
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(post_data)
-        }
+        
     };
+
+    //Buffer.byteLength(post_data);
   
     // Set up the request
     let post_req = http.request(post_options, function(res) {
