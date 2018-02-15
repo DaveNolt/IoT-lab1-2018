@@ -1,17 +1,18 @@
 const { spawnSync } = require('child_process');
+const { URL } = require('url');
 const os = require('os');
 const querystring = require('querystring');
-const http = require('http');
+const http = require('https');
 const apiconf = require('./rest-api-config.json');
 
 function getTemp() {
     let obj = JSON.parse(spawnSync('./helper/IoT-temp.exe').stdout.toString());
     let res = {};
-    if (obj["Error"] === undefined && obj.temperature !== undefined) {
+    if (obj['Error'] === undefined && obj.temperature !== undefined) {
         res.temperature = obj.temperature;
     } else {
         res.temperature = -1;
-        res.err = obj["Error"];
+        res.err = obj['Error'];
     }
     return res;
 }
@@ -19,9 +20,9 @@ function getTemp() {
 function getSystemInfo() {
     let res = [];
     res.temperature = getTemp().temperature;
-    res.ram_free = os.freemem() / Math.pow(1024,2);/*scaleBytes(os.freemem());*/
+    res.ram_free = os.freemem();/*scaleBytes(os.freemem());*/
     res.ram_usage = 100 * (os.totalmem() - res.ram_free) / os.totalmem();
-    res.ram_free /= Math.pow(1024,2);
+    res.ram_free /= Math.pow(1024, 2);
     return res;
 }
 
@@ -39,39 +40,67 @@ function scaleBytes(bytes) {
     return res;
 }
 
-// let test = getSystemInfo();
-// test.totalMem = scaleBytes(test.totalMem);
-// test.freeMem = scaleBytes(test.freeMem);
-// test.memUsage = test.memUsage.toFixed(2) + '%';
 
-function PostData(id, val) {
+function PostData() {
     // Build the post string from an object
-    let post_data = JSON.stringify({value: val});
-  
-    // An object of options to indicate where to post to
-    let post_options = {
-        
-    };
-
+    let arrReqs = [];
+    let sysinfo = getSystemInfo();
+    arrReqs.push(genReqUbidots(sysinfo));
+    arrReqs.push(genReqThingsspeak(sysinfo));
     //Buffer.byteLength(post_data);
-  
-    // Set up the request
-    let post_req = http.request(post_options, function(res) {
-        res.setEncoding('utf8');
-        res.on('data', function (chunk) {
-            console.log('Response: ' + chunk);
+    arrReqs.forEach((req) => {
+        let request = http.request(req.req_options, function (res) {
+            // res.setEncoding('utf8');
+            // res.on('data', function (chunk) {
+            //     console.log('Response: ' + chunk);
+            // });
         });
+        if (request.method === 'POST') {
+            request.write(req.req_data);
+        }
+        request.on('error', (err) => {
+            console.log(err);
+        });
+        request.end();
     });
-  
-    // post the data
-    post_req.write(post_data);
-    post_req.end();
-  
-  }
+}
 
-  setInterval(function() {
-    let arr = getSystemInfo();
-    for(let item in arr) {
-        PostData(item, arr[item]);
+function genReqThingsspeak(sysinfo) {
+    let req_options = apiconf.thingsspeak.req_options;
+    req_options.path = `${req_options.path}?${querystring.stringify({
+        api_key: apiconf.thingsspeak.api_key,
+        field1: sysinfo.ram_usage,
+        field2: sysinfo.ram_free,
+        field3: sysinfo.temperature
+    })}`;
+    return {
+        req_options: new URL('https:' + req_options.host + req_options.path),
+        req_data: ''
+    };
+}
+
+function genReqUbidots(sysinfo) {
+    let req_data = {};
+    let req_options = apiconf.ubidots.req_options;
+
+    for (let [key, value] of entries(apiconf.ubidots.vars)) {
+        req_data[value] = sysinfo[key];
     }
-  }, 1000);
+
+    req_data = JSON.stringify(req_data);
+
+    req_options.headers['Content-Length'] = Buffer.byteLength(req_data);
+    return {
+        req_options: req_options,
+        req_data: req_data
+    };
+}
+
+
+function* entries(obj) {
+    for (let key of Object.keys(obj)) {
+        yield [key, obj[key]];
+    }
+}
+
+setInterval(function () { PostData(); }, 5000);
