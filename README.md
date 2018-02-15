@@ -1,4 +1,4 @@
-# Kulik-lab1-2018
+# IoT-lab1-2018
 
 ## Example `config.json`
 
