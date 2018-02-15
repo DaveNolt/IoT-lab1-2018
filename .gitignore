@@ -4,4 +4,4 @@ js-part/helper
 rest-api-config.json
 js-part/node_modules
 .eslintrc.json
-src/*.backup
+src/mainas.cpp.backup
