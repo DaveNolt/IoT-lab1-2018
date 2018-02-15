@@ -1,0 +1,7 @@
+.vscode
+build
+js-part/helper
+rest-api-config.json
+js-part/node_modules
+.eslintrc.json
+src/mainas.cpp.backup
